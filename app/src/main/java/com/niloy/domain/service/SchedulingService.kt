@@ -404,8 +404,12 @@ class SchedulingService {
         val bestDay = weekdayRates.maxByOrNull { it.second }
         val lowestDay = weekdayRates.minByOrNull { it.second }
 
-        // Streaks
+        // Streaks & Longest Streak Calculation over the last 365 days
         var currentStreak = 0
+        var longestStreak = 0
+        var runningStreak = 0
+
+        // Calculate current streak backward from today / yesterday
         var checkDate = today
         val todayTasks = getTasksForDate(tasks, occurrencesMap[today.toString()] ?: emptyList(), today, customWeekend)
         val todayComp = todayTasks.count { it.occurrence.state == TaskState.COMPLETED }
@@ -418,7 +422,7 @@ class SchedulingService {
             if (dTasks.isEmpty()) {
                 if (customWeekend.contains(checkDate.dayOfWeek)) {
                     checkDate = checkDate.minusDays(1)
-                    if (checkDate.isBefore(today.minusDays(90))) break
+                    if (checkDate.isBefore(today.minusDays(365))) break
                     continue
                 } else {
                     break
@@ -434,6 +438,25 @@ class SchedulingService {
             }
         }
 
+        // Calculate overall longest streak forward over last 365 days
+        (365 downTo 0).forEach { offset ->
+            val d = today.minusDays(offset.toLong())
+            val dTasks = getTasksForDate(tasks, occurrencesMap[d.toString()] ?: emptyList(), d, customWeekend)
+            if (dTasks.isNotEmpty()) {
+                val comp = dTasks.count { it.occurrence.state == TaskState.COMPLETED }
+                if (comp > 0 && (comp.toFloat() / dTasks.size) >= 0.5f) {
+                    runningStreak++
+                    if (runningStreak > longestStreak) {
+                        longestStreak = runningStreak
+                    }
+                } else {
+                    runningStreak = 0
+                }
+            } else if (!customWeekend.contains(d.dayOfWeek)) {
+                runningStreak = 0
+            }
+        }
+
         return ProductivityInsights(
             mostCompletedTaskName = mostCompletedTask?.name ?: "—",
             mostCompletedTaskCount = mostCompletedCount,
@@ -444,7 +467,7 @@ class SchedulingService {
             lowestCompletionWeekday = lowestDay?.first?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "—",
             lowestCompletionWeekdayRate = lowestDay?.second ?: 0f,
             currentStreak = currentStreak,
-            longestRecurringStreak = maxOf(currentStreak, 7)
+            longestRecurringStreak = maxOf(currentStreak, longestStreak)
         )
     }
 
