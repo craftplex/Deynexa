@@ -103,12 +103,12 @@ class StatisticsViewModel(
     private val diagnosticRepository: DiagnosticRepository
 ) : ViewModel() {
 
-    private val _weekendDays = MutableStateFlow(setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY))
+    private val _weekendDays = MutableStateFlow(setOf(DayOfWeek.FRIDAY, DayOfWeek.SATURDAY))
     private val _selectedPackageNames = MutableStateFlow<Set<String>>(emptySet())
 
     init {
         viewModelScope.launch {
-            val weekendStr = repository.getSetting("weekend_days") ?: "SATURDAY,SUNDAY"
+            val weekendStr = repository.getSetting("weekend_days") ?: "FRIDAY,SATURDAY"
             if (weekendStr.isNotBlank()) {
                 val parsed = weekendStr.split(",").mapNotNull {
                     try { DayOfWeek.valueOf(it.trim()) } catch (e: Exception) { null }
@@ -169,13 +169,14 @@ class StatisticsViewModel(
                     val todaySkipped = todayTasks.count { it.occurrence.state == TaskState.SKIPPED }
                     val todayRate = if (todayTasks.isEmpty()) 0f else todayCompleted.toFloat() / todayTasks.size
 
-                    val startOfWeek = today.with(DayOfWeek.MONDAY)
-                    val fullWeekDays = (0..6).map { startOfWeek.plusDays(it.toLong()) }
+                    // Week starting on Sunday
+                    val startOfWeek = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
+                    val elapsedWeekDays = (0..6).map { startOfWeek.plusDays(it.toLong()) }.filter { !it.isAfter(today) }
                     var weekTotal = 0
                     var weekCompleted = 0
                     var weekPending = 0
                     var weekSkipped = 0
-                    fullWeekDays.forEach { d ->
+                    elapsedWeekDays.forEach { d ->
                         val dTasks = getTasksFor(d)
                         weekTotal += dTasks.size
                         weekCompleted += dTasks.count { it.occurrence.state == TaskState.COMPLETED }
@@ -185,13 +186,12 @@ class StatisticsViewModel(
                     val weekRate = if (weekTotal == 0) 0f else weekCompleted.toFloat() / weekTotal
 
                     val startOfMonth = today.withDayOfMonth(1)
-                    val lengthOfMonth = today.lengthOfMonth()
-                    val fullMonthDays = (0 until lengthOfMonth).map { startOfMonth.plusDays(it.toLong()) }
+                    val elapsedMonthDays = (0 until today.dayOfMonth).map { startOfMonth.plusDays(it.toLong()) }
                     var monthTotal = 0
                     var monthCompleted = 0
                     var monthPending = 0
                     var monthSkipped = 0
-                    fullMonthDays.forEach { d ->
+                    elapsedMonthDays.forEach { d ->
                         val dTasks = getTasksFor(d)
                         monthTotal += dTasks.size
                         monthCompleted += dTasks.count { it.occurrence.state == TaskState.COMPLETED }
@@ -201,7 +201,8 @@ class StatisticsViewModel(
                     val monthRate = if (monthTotal == 0) 0f else monthCompleted.toFloat() / monthTotal
 
                     val prevWeekStart = startOfWeek.minusDays(7)
-                    val prevWeekDays = (0..6).map { prevWeekStart.plusDays(it.toLong()) }
+                    val prevWeekEnd = today.minusDays(7)
+                    val prevWeekDays = (0..6).map { prevWeekStart.plusDays(it.toLong()) }.filter { !it.isAfter(prevWeekEnd) }
                     var prevWeekTotal = 0
                     var prevWeekCompleted = 0
                     prevWeekDays.forEach { d ->
@@ -292,11 +293,7 @@ class StatisticsViewModel(
                 // 4. Parallel Task: Diagnostics & Target Apps
                 val diagnosticsDeferred = async {
                     val installedApps = try { diagnosticRepository.getInstalledApps() } catch (e: Exception) { emptyList() }
-                    val effectiveSelectedPkgs = if (selectedPkgs.isEmpty() && installedApps.isNotEmpty()) {
-                        installedApps.take(3).map { it.packageName }.toSet()
-                    } else {
-                        selectedPkgs
-                    }
+                    val effectiveSelectedPkgs = selectedPkgs
 
                     val todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
                     val now = System.currentTimeMillis()
@@ -356,15 +353,37 @@ class StatisticsViewModel(
                     else -> "Growing"
                 }
 
-                val allTimeCompleted = allOccurrences.count { it.state == TaskState.COMPLETED }
-                val allTimeSkipped = allOccurrences.count { it.state == TaskState.SKIPPED }
-                val allTimePending = allOccurrences.count { it.state == TaskState.PENDING }
+                val activeTaskIds = tasks.filter { it.isEnabled }.map { it.id }.toSet()
+                val activeOccurrences = allOccurrences.filter { activeTaskIds.contains(it.taskId) }
+                val allTimeCompleted = activeOccurrences.count { it.state == TaskState.COMPLETED }
+                val allTimeSkipped = activeOccurrences.count { it.state == TaskState.SKIPPED }
+                val allTimePending = activeOccurrences.count { it.state == TaskState.PENDING }
 
-                // Heuristic Peak Focus Hours & Smart Suggestions
-                val peakHour = when {
-                    insights.bestCompletionWeekday.contains("Mon", ignoreCase = true) || insights.bestCompletionWeekday.contains("Tue", ignoreCase = true) -> "09:00 AM - 11:30 AM"
-                    insights.bestCompletionWeekday.contains("Sat", ignoreCase = true) || insights.bestCompletionWeekday.contains("Sun", ignoreCase = true) -> "04:00 PM - 06:30 PM"
-                    else -> "10:00 AM - 01:00 PM"
+                // Dynamic Peak Focus Hour Calculation based on active completed tasks
+                val completedTaskTimes = activeOccurrences
+                    .filter { it.state == TaskState.COMPLETED }
+                    .mapNotNull { occ ->
+                        val task = tasks.find { it.id == occ.taskId }
+                        occ.rescheduledStartTime ?: task?.startTime
+                    }
+
+                val peakHour = if (completedTaskTimes.isNotEmpty()) {
+                    val hourCounts = completedTaskTimes.groupBy { (it / 60).toInt() }
+                    val maxHourEntry = hourCounts.maxByOrNull { it.value.size }
+                    val startHour = maxHourEntry?.key ?: 10
+                    val endHour = (startHour + 2) % 24
+                    fun formatHour(h: Int): String {
+                        val period = if (h < 12) "AM" else "PM"
+                        val displayH = when (h) {
+                            0 -> 12
+                            in 1..12 -> h
+                            else -> h - 12
+                        }
+                        return String.format(Locale.getDefault(), "%02d:00 %s", displayH, period)
+                    }
+                    "${formatHour(startHour)} - ${formatHour(endHour)}"
+                } else {
+                    "07:00 AM - 08:00 AM"
                 }
 
                 val smartTip = when {
