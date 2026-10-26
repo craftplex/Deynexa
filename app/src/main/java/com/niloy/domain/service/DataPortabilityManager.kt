@@ -21,26 +21,6 @@ class DataPortabilityManager(
         val goals = database.goalDao().getAllGoalsOnce().map { it.toDomain() }
         val settings = database.settingDao().getAllSettingsOnce().associate { it.key to it.value }
 
-        val appCategories = database.appCategoryDao().getAllCategoriesOneShot().map {
-            AppCategoryBackup(
-                id = it.id,
-                name = it.name,
-                isProductive = it.isProductive,
-                createdAt = it.createdAt
-            )
-        }
-
-        val appClassifications = database.appClassificationDao().getAllClassificationsOnce().map {
-            AppClassificationBackup(
-                packageName = it.packageName,
-                appName = it.appName,
-                categories = it.categories,
-                qualityRating = it.qualityRating,
-                customProductivityType = it.customProductivityType,
-                updatedAt = it.updatedAt
-            )
-        }
-
         val focentraSessions = database.focentraStudySessionDao().getAllSessions().map {
             FocentraSessionBackup(
                 sessionId = it.sessionId,
@@ -61,7 +41,7 @@ class DataPortabilityManager(
 
         BackupData(
             backupVersion = 5,
-            appVersion = "4.0.0",
+            appVersion = "4.0.1",
             createdAt = System.currentTimeMillis(),
             backupType = "FULL_BACKUP",
             source = "Daynexa",
@@ -70,8 +50,8 @@ class DataPortabilityManager(
             tasks = tasks,
             occurrences = occurrences,
             settings = settings,
-            appCategories = appCategories,
-            appClassifications = appClassifications,
+            appCategories = emptyList(),
+            appClassifications = emptyList(),
             focentraSessions = focentraSessions,
             taskTemplates = templates,
             goals = goals
@@ -99,7 +79,7 @@ class DataPortabilityManager(
 
         FocentraExportBundle(
             exportVersion = 1,
-            appVersion = "4.0.0",
+            appVersion = "4.0.1",
             createdAt = System.currentTimeMillis(),
             source = "Focentra",
             origin = "Focentra Integration API v1",
@@ -118,8 +98,6 @@ class DataPortabilityManager(
                     database.taskTemplateDao().deleteAll()
                     database.goalDao().deleteAll()
                     database.categoryDao().deleteAll()
-                    database.appCategoryDao().deleteAll()
-                    database.appClassificationDao().deleteAll()
                     database.focentraStudySessionDao().deleteAllSessions()
 
                     if (data.categories.isNotEmpty()) {
@@ -139,27 +117,6 @@ class DataPortabilityManager(
                     data.goals?.let { list ->
                         if (list.isNotEmpty()) {
                             database.goalDao().insertAll(list.map { it.toEntity() })
-                        }
-                    }
-                    data.appCategories?.let { list ->
-                        if (list.isNotEmpty()) {
-                            database.appCategoryDao().insertAll(list.map {
-                                AppCategoryEntity(id = it.id, name = it.name, isProductive = it.isProductive, createdAt = it.createdAt)
-                            })
-                        }
-                    }
-                    data.appClassifications?.let { list ->
-                        if (list.isNotEmpty()) {
-                            database.appClassificationDao().insertAll(list.map {
-                                AppClassificationEntity(
-                                    packageName = it.packageName,
-                                    appName = it.appName,
-                                    categories = it.categories,
-                                    qualityRating = it.qualityRating,
-                                    customProductivityType = it.customProductivityType,
-                                    updatedAt = it.updatedAt
-                                )
-                            })
                         }
                     }
                     data.focentraSessions?.let { list ->
@@ -268,34 +225,7 @@ class DataPortabilityManager(
                         )
                     }
 
-                    // 6. App Categories
-                    val existingAppCats = database.appCategoryDao().getAllCategoriesOneShot().map { it.name.lowercase().trim() }.toSet()
-                    data.appCategories?.filter { it.name.lowercase().trim() !in existingAppCats }?.forEach { incomingAppCat ->
-                        database.appCategoryDao().insert(
-                            AppCategoryEntity(
-                                id = 0,
-                                name = incomingAppCat.name,
-                                isProductive = incomingAppCat.isProductive,
-                                createdAt = incomingAppCat.createdAt
-                            )
-                        )
-                    }
-
-                    // 7. App Classifications
-                    data.appClassifications?.forEach { incomingClass ->
-                        database.appClassificationDao().insertOrUpdate(
-                            AppClassificationEntity(
-                                packageName = incomingClass.packageName,
-                                appName = incomingClass.appName,
-                                categories = incomingClass.categories,
-                                qualityRating = incomingClass.qualityRating,
-                                customProductivityType = incomingClass.customProductivityType,
-                                updatedAt = incomingClass.updatedAt
-                            )
-                        )
-                    }
-
-                    // 8. Focentra Sessions (Bulk Chunked Insertion)
+                    // 6. Focentra Sessions (Bulk Chunked Insertion)
                     data.focentraSessions?.let { sessions ->
                         val sessionEntities = sessions.map { session ->
                             FocentraStudySessionEntity(
@@ -316,7 +246,7 @@ class DataPortabilityManager(
                         }
                     }
 
-                    // 9. Settings
+                    // 7. Settings
                     data.settings.forEach { (k, v) ->
                         val existing = database.settingDao().getByKey(k)
                         if (existing == null) {

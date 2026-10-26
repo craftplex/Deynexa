@@ -1,24 +1,19 @@
 package com.niloy.ui.screens
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.LocalFireDepartment
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.material3.*
@@ -30,27 +25,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.niloy.domain.model.ProductivityType
 import com.niloy.ui.components.EmptyStateView
 import com.niloy.ui.theme.AccentPrimary
 import com.niloy.ui.theme.StateCompleted
 import com.niloy.ui.theme.StatePending
 import com.niloy.ui.theme.StateSkipped
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(
-    viewModel: StatisticsViewModel,
-    onNavigateToDiagnostic: () -> Unit = {}
+    viewModel: StatisticsViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedPeriodTab by remember { mutableStateOf(1) } // 0: Today, 1: Week, 2: Month
-    var showSelectTargetAppsDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -310,109 +300,6 @@ fun StatisticsScreen(
                     }
                 }
 
-                // Target App In-Details Diagnostics Card (Entire Card Clickable to open Diagnostic Dashboard)
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(22.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onNavigateToDiagnostic() }
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(18.dp),
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    modifier = Modifier.weight(1f, fill = false)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Insights,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                    Column {
-                                        Text(
-                                            text = "Target App In-Details Diagnostics",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1
-                                        )
-                                        Text(
-                                            text = "${uiState.selectedPackageNames.size} Selected Target Apps",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-
-                                TextButton(
-                                    onClick = { showSelectTargetAppsDialog = true }
-                                ) {
-                                    Text("Select Apps", fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            if (uiState.selectedAppsDiagnostics.isEmpty()) {
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(16.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Text(
-                                            text = "No target apps selected for deep diagnosis",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Pick specific apps to perform individual usage, screen time, and focus diagnostics.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            textAlign = TextAlign.Center
-                                        )
-                                        Button(
-                                            onClick = { showSelectTargetAppsDialog = true },
-                                            shape = RoundedCornerShape(10.dp)
-                                        ) {
-                                            Text("Choose Diagnostic Apps")
-                                        }
-                                    }
-                                }
-                            } else {
-                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    uiState.selectedAppsDiagnostics.forEach { appDiag ->
-                                        SelectedAppDiagnosticItem(appDiag = appDiag)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
                 // Completion Overview Tabbed Card
                 item {
                     Surface(
@@ -615,175 +502,6 @@ fun StatisticsScreen(
             }
         }
     }
-
-    if (showSelectTargetAppsDialog) {
-        SelectTargetAppsDialog(
-            availableApps = uiState.availableInstalledApps,
-            currentlySelected = uiState.selectedPackageNames,
-            onDismiss = { showSelectTargetAppsDialog = false },
-            onSave = { updatedSelection ->
-                viewModel.updateSelectedApps(updatedSelection)
-                showSelectTargetAppsDialog = false
-            }
-        )
-    }
-}
-
-@Composable
-private fun SelectedAppDiagnosticItem(appDiag: com.niloy.ui.screens.SelectedAppDiagnostic) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            AppIconImage(
-                packageName = appDiag.packageName,
-                modifier = Modifier.size(40.dp)
-            )
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = appDiag.appName,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = appDiag.categories.joinToString(", ").ifBlank { "Unclassified" },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "Today: ${appDiag.todayFormattedTime}",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "7 Days: ${appDiag.weeklyFormattedTime}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SelectTargetAppsDialog(
-    availableApps: List<com.niloy.domain.model.InstalledAppInfo>,
-    currentlySelected: Set<String>,
-    onDismiss: () -> Unit,
-    onSave: (Set<String>) -> Unit
-) {
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedPkgs by remember { mutableStateOf(currentlySelected) }
-
-    val filteredApps = remember(availableApps, searchQuery) {
-        if (searchQuery.isBlank()) availableApps
-        else availableApps.filter {
-            it.appName.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true)
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Select Diagnostic Target Apps", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text("Pick apps to run individual in-details diagnostic checks and monitor daily screen time:", style = MaterialTheme.typography.bodySmall)
-
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search installed apps...") },
-                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    TextButton(onClick = { selectedPkgs = availableApps.map { it.packageName }.toSet() }) {
-                        Text("Select All", style = MaterialTheme.typography.labelSmall)
-                    }
-                    TextButton(onClick = { selectedPkgs = emptySet() }) {
-                        Text("Clear All", style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(filteredApps, key = { it.packageName }) { appInfo ->
-                        val isChecked = selectedPkgs.contains(appInfo.packageName)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    selectedPkgs = if (isChecked) selectedPkgs - appInfo.packageName else selectedPkgs + appInfo.packageName
-                                }
-                                .padding(horizontal = 8.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Checkbox(
-                                checked = isChecked,
-                                onCheckedChange = { checked ->
-                                    selectedPkgs = if (checked) selectedPkgs + appInfo.packageName else selectedPkgs - appInfo.packageName
-                                }
-                            )
-                            AppIconImage(
-                                packageName = appInfo.packageName,
-                                modifier = Modifier.size(36.dp)
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(appInfo.appName, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSave(selectedPkgs) },
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Text("Save Target Apps (${selectedPkgs.size})")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }
 
 @Composable

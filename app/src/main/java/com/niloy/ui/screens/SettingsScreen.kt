@@ -41,9 +41,7 @@ import java.util.Locale
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onNavigateBack: () -> Unit,
-    onNavigateToDiagnostic: () -> Unit,
-    onNavigateToClassifications: () -> Unit
+    onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -413,43 +411,6 @@ fun SettingsScreen(
                 }
             }
 
-            // Diagnostic & App Usage Section
-            item {
-                SettingsSection(title = "APP USAGE DIAGNOSTICS") {
-                    SettingsActionItem(
-                        icon = Icons.Outlined.Insights,
-                        title = "Diagnostic Dashboard",
-                        subtitle = "View focus time, app quality ratings, and usage stats",
-                        onClick = onNavigateToDiagnostic
-                    )
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-
-                    SettingsActionItem(
-                        icon = Icons.Outlined.Category,
-                        title = "Manage App Classifications",
-                        subtitle = "Categorize installed apps and set quality ratings",
-                        onClick = onNavigateToClassifications
-                    )
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-
-                    SettingsActionItem(
-                        icon = Icons.Outlined.Security,
-                        title = "Usage Access Permission",
-                        subtitle = "Open Android settings to grant or check usage permission",
-                        onClick = {
-                            try {
-                                val intent = Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                val intent = Intent(android.provider.Settings.ACTION_SETTINGS)
-                                context.startActivity(intent)
-                            }
-                        }
-                    )
-                }
-            }
 
             // System & Release Section
             item {
@@ -1044,8 +1005,6 @@ fun SettingsScreen(
                                 if (preview.categoriesCount > 0) Text("• ${preview.categoriesCount} Routine Categories")
                                 if (preview.occurrencesCount > 0) Text("• ${preview.occurrencesCount} Routine Execution Logs")
                                 if (preview.focentraSessionsCount > 0) Text("• ${preview.focentraSessionsCount} Focentra Focus Study Sessions")
-                                if (preview.appClassificationsCount > 0) Text("• ${preview.appClassificationsCount} App Classifications")
-                                if (preview.appCategoriesCount > 0) Text("• ${preview.appCategoriesCount} App Diagnostic Categories")
                                 if (preview.settingsCount > 0) Text("• ${preview.settingsCount} Preference Settings")
                             }
 

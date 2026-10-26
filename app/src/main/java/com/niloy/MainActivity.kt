@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
             var permissionsGranted by remember {
                 mutableStateOf(
                     checkNotificationPermission(context) &&
-                    checkUsagePermission(context) &&
+                    checkBatteryOptimizationPermission(context) &&
                     checkAlarmPermission(context)
                 )
             }
@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
                 val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
                     if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                         permissionsGranted = checkNotificationPermission(context) &&
-                                checkUsagePermission(context) &&
+                                checkBatteryOptimizationPermission(context) &&
                                 checkAlarmPermission(context)
                     }
                 }
@@ -176,9 +176,7 @@ fun MainContent(
             val currentRoute = currentDestination?.route
             val showBottomBar = isOnboardingCompleted &&
                     currentRoute != Screen.Onboarding::class.qualifiedName &&
-                    currentRoute?.contains("TaskDetail") != true &&
-                    currentRoute?.contains("Diagnostic") != true &&
-                    currentRoute?.contains("AppClassification") != true
+                    currentRoute?.contains("TaskDetail") != true
 
             if (showBottomBar) {
                 val bottomBarOffsetY by animateDpAsState(
@@ -462,11 +460,10 @@ fun MainContent(
             }
             composable<Screen.Statistics> {
                 val statisticsViewModel: StatisticsViewModel = viewModel(
-                    factory = StatisticsViewModel.Factory(app.repository, app.schedulingService, app.diagnosticRepository)
+                    factory = StatisticsViewModel.Factory(app.repository, app.schedulingService)
                 )
                 StatisticsScreen(
-                    viewModel = statisticsViewModel,
-                    onNavigateToDiagnostic = { navController.navigate(Screen.Diagnostic) }
+                    viewModel = statisticsViewModel
                 )
             }
             composable<Screen.Categories> {
@@ -478,27 +475,6 @@ fun MainContent(
             composable<Screen.Settings> {
                 SettingsScreen(
                     viewModel = settingsViewModel,
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateToDiagnostic = { navController.navigate(Screen.Diagnostic) },
-                    onNavigateToClassifications = { navController.navigate(Screen.AppClassification) }
-                )
-            }
-            composable<Screen.Diagnostic> {
-                val diagnosticViewModel: DiagnosticViewModel = viewModel(
-                    factory = DiagnosticViewModel.Factory(app.diagnosticRepository)
-                )
-                DiagnosticScreen(
-                    viewModel = diagnosticViewModel,
-                    onNavigateBack = { navController.popBackStack() },
-                    onNavigateToClassifications = { navController.navigate(Screen.AppClassification) }
-                )
-            }
-            composable<Screen.AppClassification> {
-                val classificationViewModel: AppClassificationViewModel = viewModel(
-                    factory = AppClassificationViewModel.Factory(app.diagnosticRepository)
-                )
-                AppClassificationScreen(
-                    viewModel = classificationViewModel,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

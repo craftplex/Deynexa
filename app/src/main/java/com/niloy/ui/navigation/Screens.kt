@@ -9,8 +9,6 @@ sealed interface Screen {
     @Serializable data object Statistics : Screen
     @Serializable data object Categories : Screen
     @Serializable data object Settings : Screen
-    @Serializable data object Diagnostic : Screen
-    @Serializable data object AppClassification : Screen
     @Serializable data object Onboarding : Screen
     @Serializable data class TaskDetail(val taskId: Long? = null) : Screen
 }
