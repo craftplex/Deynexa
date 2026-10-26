@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.niloy.domain.model.*
-import com.niloy.domain.repository.DiagnosticRepository
 import com.niloy.domain.repository.TaskRepository
 import com.niloy.domain.service.SchedulingService
 import androidx.compose.runtime.Immutable
@@ -16,7 +15,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -59,19 +57,6 @@ data class PeriodStats(
 )
 
 @Immutable
-data class SelectedAppDiagnostic(
-    val packageName: String,
-    val appName: String,
-    val todayUsageMillis: Long,
-    val todayFormattedTime: String,
-    val weeklyUsageMillis: Long,
-    val weeklyFormattedTime: String,
-    val productivityType: ProductivityType,
-    val qualityRating: AppQualityRating,
-    val categories: List<String>
-)
-
-@Immutable
 data class StatisticsUiState(
     val totalCompletedAllTime: Int = 0,
     val totalPendingAllTime: Int = 0,
@@ -91,20 +76,15 @@ data class StatisticsUiState(
     val last7DaysPoints: List<DailyChartPoint> = emptyList(),
     val heatmapCells: List<HeatmapCell> = emptyList(),
     val categoryStats: List<CategoryStat> = emptyList(),
-    val selectedAppsDiagnostics: List<SelectedAppDiagnostic> = emptyList(),
-    val availableInstalledApps: List<InstalledAppInfo> = emptyList(),
-    val selectedPackageNames: Set<String> = emptySet(),
     val isLoading: Boolean = true
 )
 
 class StatisticsViewModel(
     private val repository: TaskRepository,
-    private val schedulingService: SchedulingService,
-    private val diagnosticRepository: DiagnosticRepository
+    private val schedulingService: SchedulingService
 ) : ViewModel() {
 
     private val _weekendDays = MutableStateFlow(setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY))
-    private val _selectedPackageNames = MutableStateFlow<Set<String>>(emptySet())
 
     init {
         viewModelScope.launch {
@@ -117,18 +97,6 @@ class StatisticsViewModel(
                     _weekendDays.value = parsed
                 }
             }
-
-            val savedAppsStr = repository.getSetting("selected_diagnostic_apps") ?: ""
-            if (savedAppsStr.isNotBlank()) {
-                _selectedPackageNames.value = savedAppsStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-            }
-        }
-    }
-
-    fun updateSelectedApps(packages: Set<String>) {
-        viewModelScope.launch {
-            _selectedPackageNames.value = packages
-            repository.saveSetting("selected_diagnostic_apps", packages.joinToString(","))
         }
     }
 
@@ -136,9 +104,8 @@ class StatisticsViewModel(
         repository.getTasks(),
         repository.getAllOccurrences(),
         repository.getCategories(),
-        _weekendDays,
-        _selectedPackageNames
-    ) { tasks, allOccurrences, categories, weekendDays, selectedPkgs ->
+        _weekendDays
+    ) { tasks, allOccurrences, categories, weekendDays ->
         if (tasks.isEmpty()) {
             return@combine StatisticsUiState(isLoading = false)
         }
@@ -289,57 +256,10 @@ class StatisticsViewModel(
                     Pair(insights, categoryStatsList)
                 }
 
-                // 4. Parallel Task: Diagnostics & Target Apps
-                val diagnosticsDeferred = async {
-                    val installedApps = try { diagnosticRepository.getInstalledApps() } catch (e: Exception) { emptyList() }
-                    val effectiveSelectedPkgs = if (selectedPkgs.isEmpty() && installedApps.isNotEmpty()) {
-                        installedApps.take(3).map { it.packageName }.toSet()
-                    } else {
-                        selectedPkgs
-                    }
-
-                    val todayStart = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    val now = System.currentTimeMillis()
-                    val weekStartMillis = today.minusDays(6).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-
-                    val todaySummary = try { diagnosticRepository.getUsageSummary(todayStart, now) } catch (e: Exception) { null }
-                    val weekSummary = try { diagnosticRepository.getUsageSummary(weekStartMillis, now) } catch (e: Exception) { null }
-
-                    val selectedAppsDiagnostics = effectiveSelectedPkgs.mapNotNull { pkg ->
-                        val installed = installedApps.find { it.packageName == pkg }
-                        val todayApp = todaySummary?.topApps?.find { it.packageName == pkg }
-                        val weekApp = weekSummary?.topApps?.find { it.packageName == pkg }
-
-                        if (installed == null && todayApp == null && weekApp == null) return@mapNotNull null
-
-                        val name = installed?.appName ?: todayApp?.appName ?: pkg
-                        val todayMillis = todayApp?.totalTimeInForegroundMillis ?: 0L
-                        val weekMillis = weekApp?.totalTimeInForegroundMillis ?: 0L
-                        val prodType = installed?.productivityType ?: todayApp?.productivityType ?: ProductivityType.NEUTRAL
-                        val rating = installed?.qualityRating ?: todayApp?.qualityRating ?: AppQualityRating.UNRATED
-                        val cats = installed?.categories ?: todayApp?.categories ?: emptyList()
-
-                        SelectedAppDiagnostic(
-                            packageName = pkg,
-                            appName = name,
-                            todayUsageMillis = todayMillis,
-                            todayFormattedTime = formatMillisToUsageString(todayMillis),
-                            weeklyUsageMillis = weekMillis,
-                            weeklyFormattedTime = formatMillisToUsageString(weekMillis),
-                            productivityType = prodType,
-                            qualityRating = rating,
-                            categories = cats
-                        )
-                    }.sortedByDescending { it.todayUsageMillis }
-
-                    Triple(installedApps, effectiveSelectedPkgs, selectedAppsDiagnostics)
-                }
-
                 // Await all parallel calculations
                 val (todayStats, weekStats, monthTuple) = periodStatsDeferred.await()
                 val (last7DaysPoints, heatmapCells) = chartAndHeatmapDeferred.await()
                 val (insights, categoryStatsList) = categoryAndInsightsDeferred.await()
-                val (installedApps, effectiveSelectedPkgs, selectedAppsDiagnostics) = diagnosticsDeferred.await()
 
                 val monthStats = PeriodStats(monthTuple.v1, monthTuple.v2, monthTuple.v3, monthTuple.v4, monthTuple.v5)
                 val weeklyDelta = monthTuple.v6
@@ -393,9 +313,6 @@ class StatisticsViewModel(
                     last7DaysPoints = last7DaysPoints,
                     heatmapCells = heatmapCells,
                     categoryStats = categoryStatsList,
-                    selectedAppsDiagnostics = selectedAppsDiagnostics,
-                    availableInstalledApps = installedApps,
-                    selectedPackageNames = effectiveSelectedPkgs,
                     isLoading = false
                 )
             }
@@ -408,20 +325,11 @@ class StatisticsViewModel(
 
     class Factory(
         private val repository: TaskRepository,
-        private val schedulingService: SchedulingService,
-        private val diagnosticRepository: DiagnosticRepository
+        private val schedulingService: SchedulingService
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return StatisticsViewModel(repository, schedulingService, diagnosticRepository) as T
+            return StatisticsViewModel(repository, schedulingService) as T
         }
     }
-}
-
-private fun formatMillisToUsageString(millis: Long): String {
-    if (millis <= 0) return "0m"
-    val totalMinutes = millis / 60000
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
-    return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
 }

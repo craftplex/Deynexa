@@ -2,19 +2,15 @@ package com.niloy.ui.screens
 
 import android.Manifest
 import android.app.AlarmManager
-import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.os.Process
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -26,8 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Alarm
-import androidx.compose.material.icons.outlined.Analytics
-import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.BatterySaver
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material3.*
@@ -35,7 +30,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -57,12 +51,12 @@ fun PermissionGateScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var hasNotificationPermission by remember { mutableStateOf(checkNotificationPermission(context)) }
-    var hasUsagePermission by remember { mutableStateOf(checkUsagePermission(context)) }
+    var hasBatteryOptimizationPermission by remember { mutableStateOf(checkBatteryOptimizationPermission(context)) }
     var hasAlarmPermission by remember { mutableStateOf(checkAlarmPermission(context)) }
 
     fun refreshPermissions() {
         hasNotificationPermission = checkNotificationPermission(context)
-        hasUsagePermission = checkUsagePermission(context)
+        hasBatteryOptimizationPermission = checkBatteryOptimizationPermission(context)
         hasAlarmPermission = checkAlarmPermission(context)
     }
 
@@ -84,7 +78,7 @@ fun PermissionGateScreen(
         refreshPermissions()
     }
 
-    val isAllGranted = hasNotificationPermission && hasUsagePermission && hasAlarmPermission
+    val isAllGranted = hasNotificationPermission && hasBatteryOptimizationPermission && hasAlarmPermission
 
     LaunchedEffect(isAllGranted) {
         if (isAllGranted) {
@@ -136,7 +130,7 @@ fun PermissionGateScreen(
                     textAlign = TextAlign.Center
                 )
                 Text(
-                    text = "Daynexa operates 100% offline. To track daily routines, deliver smart reminder alerts, and analyze app productivity, please grant the permissions below.",
+                    text = "Daynexa operates 100% offline. To track daily routines and deliver reliable smart reminder alerts, please grant the permissions below.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -168,22 +162,22 @@ fun PermissionGateScreen(
                 }
             )
 
-            // 2. Usage Stats Permission Card
+            // 2. Battery Saver Exemption Card
             PermissionItemCard(
-                icon = Icons.Outlined.Analytics,
-                title = "Screen Time Diagnostics",
-                description = "Enables on-device app usage tracking & productivity analysis with zero remote telemetry.",
-                isGranted = hasUsagePermission,
+                icon = Icons.Outlined.BatterySaver,
+                title = "Battery Saver Exemption",
+                description = "Prevents Android background restrictions from killing timely routine alarm notifications.",
+                isGranted = hasBatteryOptimizationPermission,
                 onGrant = {
                     try {
-                        val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.parse("package:${context.packageName}")
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                            data = Uri.fromParts("package", context.packageName, null)
                         }
                         context.startActivity(intent)
                     } catch (e: Exception) {
                         try {
-                            context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                            context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
                             })
                         } catch (e2: Exception) {
@@ -388,23 +382,13 @@ fun checkNotificationPermission(context: Context): Boolean {
     }
 }
 
-fun checkUsagePermission(context: Context): Boolean {
-    val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager ?: return false
-    val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        appOps.unsafeCheckOpNoThrow(
-            AppOpsManager.OPSTR_GET_USAGE_STATS,
-            Process.myUid(),
-            context.packageName
-        )
+fun checkBatteryOptimizationPermission(context: Context): Boolean {
+    val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return true
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        pm.isIgnoringBatteryOptimizations(context.packageName)
     } else {
-        @Suppress("DEPRECATION")
-        appOps.checkOpNoThrow(
-            AppOpsManager.OPSTR_GET_USAGE_STATS,
-            Process.myUid(),
-            context.packageName
-        )
+        true
     }
-    return mode == AppOpsManager.MODE_ALLOWED
 }
 
 fun checkAlarmPermission(context: Context): Boolean {

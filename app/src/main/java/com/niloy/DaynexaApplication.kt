@@ -5,9 +5,7 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.niloy.data.local.AppDatabase
-import com.niloy.data.repository.DiagnosticRepositoryImpl
 import com.niloy.data.repository.TaskRepositoryImpl
-import com.niloy.domain.repository.DiagnosticRepository
 import com.niloy.domain.repository.TaskRepository
 import com.niloy.domain.service.BackupService
 import com.niloy.domain.service.FocentraIntegrationManager
@@ -19,7 +17,6 @@ import kotlinx.coroutines.launch
 class DaynexaApplication : Application() {
     lateinit var database: AppDatabase
     lateinit var repository: TaskRepository
-    lateinit var diagnosticRepository: DiagnosticRepository
     lateinit var focentraIntegrationManager: FocentraIntegrationManager
     lateinit var schedulingService: SchedulingService
     lateinit var backupService: BackupService
@@ -186,13 +183,6 @@ class DaynexaApplication : Application() {
             database.settingDao(),
             database.taskTemplateDao(),
             database.goalDao()
-        )
-
-        diagnosticRepository = DiagnosticRepositoryImpl(
-            applicationContext,
-            database.appClassificationDao(),
-            database.focentraStudySessionDao(),
-            database.appCategoryDao()
         )
 
         focentraIntegrationManager = FocentraIntegrationManager(

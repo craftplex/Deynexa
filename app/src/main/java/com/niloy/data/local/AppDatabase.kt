@@ -12,9 +12,7 @@ import com.niloy.data.local.entity.*
         TaskEntity::class,
         TaskOccurrenceEntity::class,
         SettingEntity::class,
-        AppClassificationEntity::class,
         FocentraStudySessionEntity::class,
-        AppCategoryEntity::class,
         TaskTemplateEntity::class,
         GoalEntity::class
     ],
@@ -27,9 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun taskOccurrenceDao(): TaskOccurrenceDao
     abstract fun settingDao(): SettingDao
-    abstract fun appClassificationDao(): AppClassificationDao
     abstract fun focentraStudySessionDao(): FocentraStudySessionDao
-    abstract fun appCategoryDao(): AppCategoryDao
     abstract fun taskTemplateDao(): TaskTemplateDao
     abstract fun goalDao(): GoalDao
 }
